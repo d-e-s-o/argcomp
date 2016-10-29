@@ -20,6 +20,7 @@
 """Test cases for the PrefixTree class."""
 
 from deso.argcomp.trie import (
+  iterWords,
   PrefixNotFound,
   PrefixTree,
 )
@@ -31,6 +32,18 @@ from unittest import (
 
 class TestPrefixTree(TestCase):
   """Tests for the PrefixTree class."""
+  def testEmptyTreeRoot(self):
+    """Verify that the root of an empty tree is well defined."""
+    tree = PrefixTree()
+    node = tree.root
+    # The node must not have a value as we never inserted anything.
+    self.assertFalse(node.hasValue())
+    # The node must represent the empty string prefix.
+    self.assertEqual(str(node), "")
+    # The node must not have any children.
+    self.assertEqual(len(list(iter(node))), 0)
+
+
   def testSingleValueFind(self):
     """Test the finding of true prefixes in a trie with a single element."""
     tree = PrefixTree()
@@ -142,6 +155,33 @@ class TestPrefixTree(TestCase):
 
     with self.assertRaises(PrefixNotFound):
       tree.findExact("ba")
+
+
+  def testWordIteration(self):
+    """Test that word iteration works correctly."""
+    tree = PrefixTree()
+    self.assertEqual(len(list(iterWords(tree.root))), 0)
+
+    tree.insert("foo", 42)
+    words = set(iterWords(tree.root))
+    self.assertSetEqual(words, {("foo", 42)})
+
+    tree.insert("foobar", 0xf00ba5)
+    words = set(iterWords(tree.root))
+    expected = {
+      ("foo", 42),
+      ("foobar", 0xf00ba5),
+    }
+    self.assertSetEqual(words, expected)
+
+    tree.insert("foobaz", 1337)
+    # Get all words starting with "fooba".
+    words = set(iterWords(tree.find("fooba")))
+    expected = {
+      ("foobar", 0xf00ba5),
+      ("foobaz", 1337),
+    }
+    self.assertSetEqual(words, expected)
 
 
 if __name__ == "__main__":

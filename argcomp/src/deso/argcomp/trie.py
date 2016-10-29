@@ -20,6 +20,16 @@
 """An implementation of a prefix tree."""
 
 
+def iterWords(node):
+  """Iterate over the actual words in a PrefixTree."""
+  if node.hasValue():
+    yield str(node), node.value
+
+  for child in iter(node):
+    for prefix, value in iterWords(child):
+      yield prefix, value
+
+
 class PrefixNotFound(Exception):
   """An exception indicating that no entry was found beginning with the given prefix."""
   pass
@@ -112,3 +122,9 @@ class PrefixTree:
       raise PrefixNotFound("String %s not found." % string)
 
     return node
+
+
+  @property
+  def root(self):
+    """Retrieve the root node of the tree."""
+    return _Node(str(), self._tree)
