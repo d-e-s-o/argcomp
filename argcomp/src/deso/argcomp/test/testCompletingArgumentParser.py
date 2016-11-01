@@ -22,6 +22,10 @@
 from deso.argcomp import (
   CompletingArgumentParser,
 )
+from deso.argcomp.parser import (
+  escapeDoubleDash,
+  unescapeDoubleDash,
+)
 from io import (
   StringIO,
 )
@@ -36,6 +40,29 @@ from unittest import (
 from unittest.mock import (
   patch,
 )
+
+
+class TestMisc(TestCase):
+  """Tests for miscellaneous functionality accompanying the argument parser."""
+  def testEscape(self):
+    """Test the escapeDoubleDash function."""
+    escaped = escapeDoubleDash([r"--"])
+    self.assertEqual(list(escaped), [r"\--"])
+
+
+  def testEscapeFromIndex(self):
+    """Test the escapeDoubleDash function with a start index."""
+    # No escaping should occur if we start at the second element.
+    args = [r"--", r"foo"]
+    escaped = escapeDoubleDash(args, 1)
+    self.assertEqual(list(escaped), [r"--", r"foo"])
+
+
+  def testEscapeAndUnescape(self):
+    """Verify that escaping and unescaping an argument vector results in the original."""
+    args = [r"bar", r"\\--", r"\--", r"--", r"--fo", r"foo"]
+    transformed = unescapeDoubleDash(escapeDoubleDash(args))
+    self.assertEqual(list(transformed), args)
 
 
 class TestCompletingArgumentParser(TestCase):
@@ -72,6 +99,7 @@ class TestCompletingArgumentParser(TestCase):
 
     parser.add_argument("-b", "--bar", action="store_true")
     self.performCompletion(parser, ["-"], {"--foo", "-b", "--bar"})
+    self.performCompletion(parser, ["--"], {"--foo", "--bar"})
     self.performCompletion(parser, ["-b"], {"-b"})
     self.performCompletion(parser, ["-b", "--foo", "-b"], {"-b"})
     self.performCompletion(parser, ["-b", "--foo", ""], {"--foo", "-b", "--bar"})
