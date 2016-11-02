@@ -53,9 +53,21 @@ def unescapeDoubleDash(args):
   return map(lambda x: x.replace(r"\--", r"--"), args)
 
 
-def complete(prefix_tree, to_complete):
+def complete(prefix_tree, words):
   """Complete the last word in the given list of words."""
+  # Without loss of generality, we attempt completing the last word in
+  # the list of words. The assumption here is that only context before
+  # this word matters, so everything found afterwards is irrelevant and
+  # must be removed by the caller.
+  *words, to_complete = words
   try:
+    for word in words:
+      node = prefix_tree.findExact(word)
+      if node.hasValue():
+        value = node.value
+        if isinstance(value, PrefixTree):
+          prefix_tree = value
+
     node = prefix_tree.find(to_complete)
     for word, _ in iterWords(node):
       yield word
@@ -84,7 +96,7 @@ class CompleteAction(Action):
     # by a new line symbol) and then exit. The latter step is rather
     # clumsy but then no better solution that requires no additional
     # work on the client side was found.
-    completions = list(complete(parser.arguments, words[index - 1]))
+    completions = list(complete(parser.arguments, words[:index]))
     if len(completions) > 0:
       print("\n".join(completions))
 
@@ -94,7 +106,7 @@ class CompleteAction(Action):
 class CompletingArgumentParser(ArgumentParser):
   """An ArgumentParser derivate with argument completion support."""
   def __init__(self, *args, prefix_chars=None, fromfile_prefix_chars=None,
-               **kwargs):
+               arguments=None, **kwargs):
     """Create an argument parser with argument completion support."""
     assert prefix_chars is None, ("The prefix_chars argument is not "
                                   "supported. Got %s." % prefix_chars)
@@ -102,7 +114,10 @@ class CompletingArgumentParser(ArgumentParser):
                                            "argument is not supported. "
                                            "Got %s." % fromfile_prefix_chars)
 
-    self._arguments = PrefixTree()
+    if arguments is None:
+      self._arguments = PrefixTree()
+    else:
+      self._arguments = arguments
 
     # Note that in case the add_help option is true the argment parser
     # will add two arguments -h/--help. Because it uses the add_argument
@@ -153,6 +168,32 @@ class CompletingArgumentParser(ArgumentParser):
       pass
 
     return super().parse_args(args=args, namespace=namespace)
+
+
+  def add_subparsers(self, *args, **kwargs):
+    """Add subparsers to the argument parser."""
+    def addParser(add_parser, name, *args, **kwargs):
+      """A replacement method for the add_parser method."""
+      sub_arguments = PrefixTree()
+      self._arguments.insert(name, sub_arguments)
+
+      # Invoke the original add_parser function. We need to do that
+      # because this function takes care of handling special keyword
+      # arguments such as 'help' which must not be passed through to our
+      # argument parser directly.
+      return add_parser(name, *args, arguments=sub_arguments, **kwargs)
+
+    assert "parser_class" not in kwargs, ("parser_class argument not supported. "
+                                          "Got %s." % kwargs["parser_class"])
+
+    # We create the subparsers object as would be done by a "real"
+    # ArgumentParser but also overwrite the add_parser method.
+    subparsers = super().add_subparsers(*args, parser_class=CompletingArgumentParser, **kwargs)
+
+    add_parser = subparsers.add_parser
+    subparsers.add_parser = lambda *a, **k: addParser(add_parser, *a, **k)
+
+    return subparsers
 
 
   @property

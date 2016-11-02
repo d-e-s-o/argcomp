@@ -120,5 +120,55 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(parser, ["--h"], {"--help"})
 
 
+  def testCompletionWithSubparser(self):
+    """Verify that completion also works with sub parsers."""
+    parser = CompletingArgumentParser(prog="subfoo", add_help=False)
+    parser.add_argument("--foo", action="store_true")
+
+    subparsers = parser.add_subparsers()
+    bar = subparsers.add_parser("bar", add_help=False)
+    bar.add_argument("-b", "--baz", action="store_true")
+
+    foobar = subparsers.add_parser("foobar")
+    foobar.add_argument("--foobar", action="store_true")
+
+    subparsers2 = foobar.add_subparsers()
+    foobarbaz = subparsers2.add_parser("foobarbaz", add_help=False)
+    foobarbaz.add_argument("--test", action="store_true")
+
+    self.performCompletion(parser, ["-"], {"--foo"})
+    self.performCompletion(parser, ["b"], {"bar"})
+    self.performCompletion(parser, ["bar", ""], {"-b", "--baz"})
+    self.performCompletion(parser, ["foobar", ""], {"foobarbaz", "-h", "--foobar", "--help"})
+    self.performCompletion(parser, ["--foo", "foobar", ""], {"foobarbaz", "-h", "--foobar", "--help"})
+    self.performCompletion(parser, ["foobar", "--f"], {"--foobar"})
+    self.performCompletion(parser, ["foobar", "f"], {"foobarbaz"})
+    self.performCompletion(parser, ["foobar", "--foobar", "foobarbaz", ""], {"--test"})
+    self.performCompletion(parser, ["--foo", "foobar", "foobarbaz", ""], {"--test"})
+
+
+  def testSubparsersCanCompleteSubCommands(self):
+    """Verify that sub parsers can complete arguments themselves."""
+    root = CompletingArgumentParser(prog="root", add_help=False)
+    root.add_argument("--rootopt", action="store_true")
+
+    subparsers = root.add_subparsers()
+    sub1 = subparsers.add_parser("sub1", add_help=False, help="Perform sub1.")
+    sub1.add_argument("-s", "--sub1opt", action="store_true")
+
+    sub2 = subparsers.add_parser("sub2", add_help=False)
+    sub2.add_argument("-s", "--sub2opt", action="store_true")
+
+    subparsers2 = sub2.add_subparsers()
+    sub21 = subparsers2.add_parser("sub21", help="Perform sub21.")
+    sub21.add_argument("--sub21opt", action="store_true")
+
+    self.performCompletion(root, [""], {"--rootopt", "sub1", "sub2"})
+    self.performCompletion(sub1, [""], {"-s", "--sub1opt"})
+    self.performCompletion(sub1, ["--"], {"--sub1opt"})
+    self.performCompletion(sub2, [""], {"sub21", "-s", "--sub2opt"})
+    self.performCompletion(sub21, [""], {"-h", "--help", "--sub21opt"})
+
+
 if __name__ == "__main__":
   main()
