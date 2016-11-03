@@ -19,10 +19,15 @@
 
 """Tests for the CompletingArgumentParser class."""
 
+from argparse import (
+  Action,
+)
 from deso.argcomp import (
   CompletingArgumentParser,
 )
 from deso.argcomp.parser import (
+  decodeAction,
+  decodeNargs,
   escapeDoubleDash,
   unescapeDoubleDash,
 )
@@ -32,6 +37,7 @@ from io import (
 from sys import (
   argv as sysargv,
   executable,
+  maxsize,
 )
 from unittest import (
   TestCase,
@@ -63,6 +69,46 @@ class TestMisc(TestCase):
     args = [r"bar", r"\\--", r"\--", r"--", r"--fo", r"foo"]
     transformed = unescapeDoubleDash(escapeDoubleDash(args))
     self.assertEqual(list(transformed), args)
+
+
+  def testDecodeNargs(self):
+    """Check that the decodeNargs() function works as expected."""
+    min_, max_ = decodeNargs("*")
+    self.assertEqual(min_, 0)
+    self.assertEqual(max_, maxsize)
+
+    min_, max_ = decodeNargs("?")
+    self.assertEqual(min_, 0)
+    self.assertEqual(max_, 1)
+
+    min_, max_ = decodeNargs("+")
+    self.assertEqual(min_, 1)
+    self.assertEqual(max_, maxsize)
+
+    min_, max_ = decodeNargs(50)
+    self.assertEqual(min_, 50)
+    self.assertEqual(max_, 50)
+
+
+  def testDecodeAction(self):
+    """Verify that the decodeAction() function works properly."""
+    min_, max_ = decodeAction("store_false")
+    self.assertEqual(min_, 0)
+    self.assertEqual(max_, 0)
+
+    min_, max_ = decodeAction("help")
+    self.assertEqual(min_, 0)
+    self.assertEqual(max_, 0)
+
+    class TestAction(Action):
+      """A action used for testing purposes."""
+      def __call__(self, parser, namespace, values, option_string=None):
+        """Invoke the action."""
+        setattr(namespace, self.dest, values)
+
+    min_, max_ = decodeAction(TestAction("-f", "foo", nargs=13))
+    self.assertEqual(min_, 13)
+    self.assertEqual(max_, 13)
 
 
 class TestCompletingArgumentParser(TestCase):

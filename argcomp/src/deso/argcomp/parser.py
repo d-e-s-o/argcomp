@@ -35,6 +35,7 @@ from itertools import (
 )
 from sys import (
   argv,
+  maxsize,
 )
 
 
@@ -74,6 +75,56 @@ def complete(prefix_tree, words):
   except PrefixNotFound:
     # If no word is matched by the given prefix we have nothing to do.
     pass
+
+
+def decodeNargs(nargs):
+  """Decode the nargs value as accepted by the ArgumentParser's add_argument method."""
+  if nargs == "*" or nargs == REMAINDER:
+    # Any number of arguments.
+    return 0, maxsize
+  elif nargs == "?":
+    # Zero or one argument.
+    return 0, 1
+  elif nargs == "+":
+    # More than zero arguments.
+    return 1, maxsize
+  elif nargs is None:
+    # In some scenarios (custom actions; probably others as well) the
+    # nargs value might be None. The behavior in this case is to require
+    # a single argument (similar to the default store action).
+    return 1, 1
+  else:
+    # A specific number of arguments.
+    assert isinstance(nargs, int), nargs
+    return nargs, nargs
+
+
+def decodeAction(action):
+  """Decode the number of arguments for an action."""
+  lookup = {
+    # An action of None is the default and is equal to the "store"
+    # action, both of which default to a single argument.
+    None: 1,
+    "store": 1,
+    "store_const": 0,
+    "store_true": 0,
+    "store_false": 0,
+    "append": 1,
+    "append_const": 0,
+    "count": 0,
+    "help": 0,
+    "version": 0,
+  }
+
+  try:
+    return decodeNargs(lookup[action])
+  except KeyError:
+    # We must be dealing with an action object/class or an object
+    # implementing the same interface. Any such object must have a
+    # public 'nargs' member.
+    # TODO: We assume we got passed in an object but a class is equally
+    #       valid. It is unclear how we would deal with the latter.
+    return decodeNargs(action.nargs)
 
 
 class CompleteAction(Action):
