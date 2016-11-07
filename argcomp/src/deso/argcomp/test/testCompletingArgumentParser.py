@@ -157,6 +157,66 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(parser, ["-b", "-a"], set(), exit_code=1)
 
 
+  def testCompleteAfterPositional(self):
+    """Verify that a single keyword argument following a positional argument can be completed."""
+    parser = CompletingArgumentParser(add_help=False)
+    parser.add_argument("positional")
+    parser.add_argument("--foo", action="store_true")
+
+    self.performCompletion(parser, ["foobar", ""], {"--foo"})
+
+
+  def testCompleteAfterPositionals(self):
+    """Verify that keyword arguments following positional arguments can be completed."""
+    parser = CompletingArgumentParser(add_help=False)
+    parser.add_argument("positional1")
+    parser.add_argument("positional2")
+    parser.add_argument("--foo", action="store_true")
+    parser.add_argument("-b", "--bar", action="store_true")
+
+    self.performCompletion(parser, ["foobar", ""], {"-b", "--bar", "--foo"})
+    self.performCompletion(parser, ["-b", "foobar", "--"], {"--bar", "--foo"})
+    self.performCompletion(parser, ["foobar", "bazzer", ""], {"-b", "--bar", "--foo"})
+    self.performCompletion(parser, ["foobar", "--bar", "bazzer", ""], {"-b", "--bar", "--foo"})
+    self.performCompletion(parser, ["foobar", "--bar", "bazzer", "booh"], set(), exit_code=1)
+
+
+  def testMultipleArguments(self):
+    """Verify that options with arguments can be handled and completed."""
+    parser = CompletingArgumentParser()
+    parser.add_argument("--test", nargs=1, type=str)
+    parser.add_argument("-f", nargs="*", type=int)
+    parser.add_argument("-b", "--bar", action="store_true")
+
+    self.performCompletion(parser, ["--test", ""], set(), exit_code=1)
+
+
+  def testArgumentsWithAllActions(self):
+    """Check that we can add arguments for all sorts of actions."""
+    parser = CompletingArgumentParser(add_help=False)
+    parser.add_argument("store", action="store")
+    parser.add_argument("store", action="store", nargs=42)
+    parser.add_argument("store_const", action="store_const", const="foo")
+    parser.add_argument("store_false", action="store_false")
+    parser.add_argument("append", action="append")
+    parser.add_argument("append_const", action="append_const", const="foo")
+    parser.add_argument("count", action="count")
+
+    parser.add_argument("--store", action="store", dest="store")
+    parser.add_argument("--store2", action="store", nargs=3, dest="store2")
+    parser.add_argument("--store_const", action="store_const", const="foo", dest="store_const")
+    parser.add_argument("--store_false", action="store_false", dest="store_false")
+    parser.add_argument("--append", action="append", dest="append")
+    parser.add_argument("--append_const", action="append_const", const="foo", dest="append_const")
+    parser.add_argument("--count", action="count", dest="count")
+    parser.add_argument("--help", action="help")
+    parser.add_argument("--version", action="version")
+
+    # We don't actually do anything else here. We merely wanted to check
+    # that we can successfully add completions for all "built-in"
+    # actions.
+
+
   def testHelpCompletion(self):
     """Verify that the -h/--help arguments can be completed properly."""
     parser = CompletingArgumentParser(prog="foo")

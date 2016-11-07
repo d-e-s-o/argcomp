@@ -74,6 +74,12 @@ class _Node:
     return self._node["value"]
 
 
+  @value.setter
+  def value(self, value):
+    """Set the node's value."""
+    self._node["value"] = value
+
+
 class PrefixTree:
   """A class representing a prefix tree."""
   def __init__(self):

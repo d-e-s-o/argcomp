@@ -54,6 +54,15 @@ def unescapeDoubleDash(args):
   return map(lambda x: x.replace(r"\--", r"--"), args)
 
 
+def positionals(prefix_tree):
+  """Retrieve a prefix tree's positional arguments."""
+  node = prefix_tree.root
+  if node.hasValue():
+    return node.value
+
+  return 0, 0
+
+
 def complete(prefix_tree, words):
   """Complete the last word in the given list of words."""
   # Without loss of generality, we attempt completing the last word in
@@ -61,17 +70,47 @@ def complete(prefix_tree, words):
   # this word matters, so everything found afterwards is irrelevant and
   # must be removed by the caller.
   *words, to_complete = words
+  # The minimum and maximum parser-level positional arguments.
+  min_pargs, max_pargs = positionals(prefix_tree)
+  # The minimum and maximum keyword-level positional arguments.
+  min_kargs, max_kargs = (0, 0)
+
   try:
     for word in words:
-      node = prefix_tree.findExact(word)
-      if node.hasValue():
-        value = node.value
-        if isinstance(value, PrefixTree):
-          prefix_tree = value
+      # Try matching any keyword arguments. They take precedence over
+      # positional arguments below.
+      try:
+        node = prefix_tree.findExact(word)
+        max_kargs = 0
+        if node.hasValue():
+          value = node.value
+          if isinstance(value, PrefixTree):
+            prefix_tree = value
+            min_kargs, max_kargs = (0, 0)
+          elif isinstance(value, tuple):
+            min_kargs, max_kargs = value
+      except PrefixNotFound:
+        # Try matching it as a positional. Keyword argument positionals
+        # take precedence over parser level ones.
+        if max_kargs > 0:
+          min_kargs -= 1
+          max_kargs -= 1
+        elif max_pargs > 0:
+          min_pargs -= 1
+          max_pargs -= 1
+        else:
+          raise
 
-    node = prefix_tree.find(to_complete)
-    for word, _ in iterWords(node):
-      yield word
+    # If there are open keyword-level positional arguments then we
+    # should not start completion of keyword arguments.
+    if min_kargs <= 0:
+      node = prefix_tree.find(to_complete)
+      for word, _ in iterWords(node):
+        # If the parser has registered positional arguments they will be
+        # contained in the root so we will get an empty word here. Filter
+        # it out.
+        if len(word) > 0:
+          yield word
   except PrefixNotFound:
     # If no word is matched by the given prefix we have nothing to do.
     pass
@@ -181,11 +220,42 @@ class CompletingArgumentParser(ArgumentParser):
     )
 
 
+  def _addCompletion(self, arg, **kwargs):
+    """Register a completion for the given argument."""
+    # We only fall back to interpreting the action to deduce the
+    # argument count if no nargs parameter is given.
+    if "nargs" in kwargs:
+      cur_min_, cur_max_ = decodeNargs(kwargs["nargs"])
+    elif "action" in kwargs:
+      cur_min_, cur_max_ = decodeAction(kwargs["action"])
+    else:
+      # If no action is given the store action expecting a single
+      # argument is the default.
+      cur_min_, cur_max_ = (1, 1)
+
+    keyword = arg.startswith("-")
+    if keyword:
+      # We are dealing with a keyword argument.
+      self._arguments.insert(arg, (cur_min_, cur_max_))
+    else:
+      # We are dealing with a positional argument.
+      root = self._arguments.root
+      if root.hasValue():
+        # TODO: What about the minimum? Strictly speaking we don't care
+        #       because we never use it for parser-level positionals but
+        #       we need a story for them (or remove them completely).
+        min_, max_ = root.value
+        max_ += cur_max_
+        root.value = (min_, max_)
+      else:
+        root.value = (cur_min_, cur_max_)
+
+
   def add_argument(self, *args, complete=True, **kwargs):
     """Add an argument to the parser."""
     if complete:
       for arg in args:
-        self._arguments.insert(arg, None)
+        self._addCompletion(arg, **kwargs)
 
     return super().add_argument(*args, **kwargs)
 
