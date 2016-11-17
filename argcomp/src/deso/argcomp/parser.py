@@ -25,10 +25,8 @@ from argparse import (
   REMAINDER,
   SUPPRESS,
 )
-from deso.argcomp.trie import (
-  iterWords,
-  PrefixNotFound,
-  PrefixTree,
+from collections import (
+  namedtuple,
 )
 from itertools import (
   chain,
@@ -40,6 +38,16 @@ from sys import (
 
 
 COMPLETE_OPTION = "--_complete"
+
+
+class Arguments(namedtuple("Arguments", ["positionals", "keywords"])):
+  """A tuple describing possible program options."""
+  def __new__(cls, positionals=None, keywords=None):
+    """Overwrite class creation to provide proper default arguments."""
+    if keywords is None:
+      keywords = {}
+
+    return super().__new__(cls, positionals, keywords)
 
 
 def escapeDoubleDash(args, index=0):
@@ -54,16 +62,15 @@ def unescapeDoubleDash(args):
   return map(lambda x: x.replace(r"\--", r"--"), args)
 
 
-def positionals(prefix_tree):
+def positionals(arguments):
   """Retrieve a prefix tree's positional arguments."""
-  node = prefix_tree.root
-  if node.hasValue():
-    return node.value
+  if arguments.positionals is not None:
+    return arguments.positionals
 
   return 0, 0
 
 
-def complete(prefix_tree, words):
+def complete(arguments, words):
   """Complete the last word in the given list of words."""
   # Without loss of generality, we attempt completing the last word in
   # the list of words. The assumption here is that only context before
@@ -71,49 +78,38 @@ def complete(prefix_tree, words):
   # must be removed by the caller.
   *words, to_complete = words
   # The minimum and maximum parser-level positional arguments.
-  min_pargs, max_pargs = positionals(prefix_tree)
+  min_pargs, max_pargs = positionals(arguments)
   # The minimum and maximum keyword-level positional arguments.
   min_kargs, max_kargs = (0, 0)
 
-  try:
-    for word in words:
-      # Try matching any keyword arguments. They take precedence over
-      # positional arguments below.
-      try:
-        node = prefix_tree.findExact(word)
-        max_kargs = 0
-        if node.hasValue():
-          value = node.value
-          if isinstance(value, PrefixTree):
-            prefix_tree = value
-            min_kargs, max_kargs = (0, 0)
-          elif isinstance(value, tuple):
-            min_kargs, max_kargs = value
-      except PrefixNotFound:
-        # Try matching it as a positional. Keyword argument positionals
-        # take precedence over parser level ones.
-        if max_kargs > 0:
-          min_kargs -= 1
-          max_kargs -= 1
-        elif max_pargs > 0:
-          min_pargs -= 1
-          max_pargs -= 1
-        else:
-          raise
+  for word in words:
+    # Try matching any keyword arguments. They take precedence over
+    # positional arguments below.
+    if word in arguments.keywords:
+      value = arguments.keywords[word]
+      max_kargs = 0
+      if isinstance(value, Arguments):
+        arguments = value
+        min_kargs, max_kargs = (0, 0)
+      elif isinstance(value, tuple):
+        min_kargs, max_kargs = value
+    # Try matching it as a positional. Keyword argument positionals
+    # take precedence over parser level ones.
+    elif max_kargs > 0:
+      min_kargs -= 1
+      max_kargs -= 1
+    elif max_pargs > 0:
+      min_pargs -= 1
+      max_pargs -= 1
+    else:
+      return
 
-    # If there are open keyword-level positional arguments then we
-    # should not start completion of keyword arguments.
-    if min_kargs <= 0:
-      node = prefix_tree.find(to_complete)
-      for word, _ in iterWords(node):
-        # If the parser has registered positional arguments they will be
-        # contained in the root so we will get an empty word here. Filter
-        # it out.
-        if len(word) > 0:
-          yield word
-  except PrefixNotFound:
-    # If no word is matched by the given prefix we have nothing to do.
-    pass
+  # If there are open keyword-level positional arguments then we
+  # should not start completion of keyword arguments.
+  if min_kargs <= 0:
+    for word in arguments.keywords:
+      if word.startswith(to_complete):
+        yield word
 
 
 def decodeNargs(nargs):
@@ -205,7 +201,7 @@ class CompletingArgumentParser(ArgumentParser):
                                            "Got %s." % fromfile_prefix_chars)
 
     if arguments is None:
-      self._arguments = PrefixTree()
+      self._arguments = Arguments()
     else:
       self._arguments = arguments
 
@@ -236,19 +232,18 @@ class CompletingArgumentParser(ArgumentParser):
     keyword = arg.startswith("-")
     if keyword:
       # We are dealing with a keyword argument.
-      self._arguments.insert(arg, (cur_min_, cur_max_))
+      self._arguments.keywords[arg] = (cur_min_, cur_max_)
     else:
       # We are dealing with a positional argument.
-      root = self._arguments.root
-      if root.hasValue():
+      if self._arguments.positionals is not None:
         # TODO: What about the minimum? Strictly speaking we don't care
         #       because we never use it for parser-level positionals but
         #       we need a story for them (or remove them completely).
-        min_, max_ = root.value
+        min_, max_ = self._arguments.positionals
         max_ += cur_max_
-        root.value = (min_, max_)
+        self._arguments = Arguments((min_, max_), self._arguments.keywords)
       else:
-        root.value = (cur_min_, cur_max_)
+        self._arguments = Arguments((cur_min_, cur_max_), self._arguments.keywords)
 
 
   def add_argument(self, *args, complete=True, **kwargs):
@@ -295,8 +290,8 @@ class CompletingArgumentParser(ArgumentParser):
     """Add subparsers to the argument parser."""
     def addParser(add_parser, name, *args, **kwargs):
       """A replacement method for the add_parser method."""
-      sub_arguments = PrefixTree()
-      self._arguments.insert(name, sub_arguments)
+      sub_arguments = Arguments()
+      self._arguments.keywords[name] = sub_arguments
 
       # Invoke the original add_parser function. We need to do that
       # because this function takes care of handling special keyword

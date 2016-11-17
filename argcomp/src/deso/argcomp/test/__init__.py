@@ -34,7 +34,6 @@ def allTests():
   # to be able to easily deselect parts.
   tests = [
     "testCompletingArgumentParser.py",
-    "testPrefixTree.py",
   ]
 
   loader = TestLoader()
