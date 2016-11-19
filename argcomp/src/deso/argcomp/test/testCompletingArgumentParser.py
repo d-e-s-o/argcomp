@@ -276,5 +276,37 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(sub21, [""], {"-h", "--help", "--sub21opt"})
 
 
+  def testCompleteAnyPositionals(self):
+    """Verify that we can handle a '*' parser-level positional argument correctly."""
+    parser = CompletingArgumentParser(prog="posUnlimited")
+    parser.add_argument("positionals", nargs="*")
+
+    self.performCompletion(parser, ["-"], {"-h", "--help"})
+    self.performCompletion(parser, ["pos1", "--"], {"--help"})
+    self.performCompletion(parser, ["pos1", "pos2", ""], {"-h", "--help"})
+
+
+  def testCompleteSinglePositionalMax(self):
+    """Verify that parser-level positionals can be exhausted."""
+    parser = CompletingArgumentParser(prog="posLimited")
+    parser.add_argument("positionals", nargs="?")
+
+    self.performCompletion(parser, ["-"], {"-h", "--help"})
+    self.performCompletion(parser, ["pos1", "--"], {"--help"})
+    self.performCompletion(parser, ["pos1", "pos2", ""], set(), exit_code=1)
+
+
+  def testCompleteFixedPositionals(self):
+    """Verify that completion stops after exceeding the maximum parser-level positionals."""
+    parser = CompletingArgumentParser(prog="posFixed")
+    parser.add_argument("positionals", nargs=3)
+
+    self.performCompletion(parser, ["-"], {"-h", "--help"})
+    self.performCompletion(parser, ["pos1", "--"], {"--help"})
+    self.performCompletion(parser, ["pos1", "pos2", ""], {"-h", "--help"})
+    self.performCompletion(parser, ["pos1", "pos2", "pos3", ""], {"-h", "--help"})
+    self.performCompletion(parser, ["pos1", "pos2", "pos3", "pos4", ""], set(), exit_code=1)
+
+
 if __name__ == "__main__":
   main()

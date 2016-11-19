@@ -64,24 +64,21 @@ def unescapeDoubleDash(args):
   return map(lambda x: x.replace(r"\--", r"--"), args)
 
 
-def positionals(arguments):
-  """Retrieve a prefix tree's positional arguments."""
-  for x, y in arguments.positionals:
-    yield x, y
-
-  yield 0, 0
-
-
 def complete(arguments, words):
   """Complete the last word in the given list of words."""
-  it = positionals(arguments)
   # Without loss of generality, we attempt completing the last word in
   # the list of words. The assumption here is that only context before
   # this word matters, so everything found afterwards is irrelevant and
   # must be removed by the caller.
   *words, to_complete = words
-  # The minimum and maximum parser-level positional arguments.
-  min_pargs, max_pargs = next(it)
+  # The index to the next parser-level positional argument.
+  parg = 0
+  # The maximum parser-level positional arguments for the given argument.
+  if len(arguments.positionals) > 0:
+    _, max_pargs = arguments.positionals[parg]
+  else:
+    _, max_pargs = (0, 0)
+
   # The minimum and maximum keyword-level positional arguments.
   min_kargs, max_kargs = (0, 0)
 
@@ -102,12 +99,16 @@ def complete(arguments, words):
       min_kargs -= 1
       max_kargs -= 1
     elif max_pargs > 0:
-      min_pargs -= 1
       max_pargs -= 1
-      if max_kargs <= 0:
-        min_pargs, max_pargs = next(it)
     else:
-      return
+      for parg in range(parg + 1, len(arguments.positionals)):
+        _, max_pargs = arguments.positionals[parg]
+        if max_pargs > 0:
+          max_pargs -= 1
+          break
+      else:
+        # We were unable to find a matching positional argument.
+        return
 
   # If there are open keyword-level positional arguments then we
   # should not start completion of keyword arguments.
