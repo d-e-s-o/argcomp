@@ -44,6 +44,8 @@ class Arguments(namedtuple("Arguments", ["positionals", "keywords"])):
   """A tuple describing possible program options."""
   def __new__(cls, positionals=None, keywords=None):
     """Overwrite class creation to provide proper default arguments."""
+    if positionals is None:
+      positionals = []
     if keywords is None:
       keywords = {}
 
@@ -64,21 +66,22 @@ def unescapeDoubleDash(args):
 
 def positionals(arguments):
   """Retrieve a prefix tree's positional arguments."""
-  if arguments.positionals is not None:
-    return arguments.positionals
+  for x, y in arguments.positionals:
+    yield x, y
 
-  return 0, 0
+  yield 0, 0
 
 
 def complete(arguments, words):
   """Complete the last word in the given list of words."""
+  it = positionals(arguments)
   # Without loss of generality, we attempt completing the last word in
   # the list of words. The assumption here is that only context before
   # this word matters, so everything found afterwards is irrelevant and
   # must be removed by the caller.
   *words, to_complete = words
   # The minimum and maximum parser-level positional arguments.
-  min_pargs, max_pargs = positionals(arguments)
+  min_pargs, max_pargs = next(it)
   # The minimum and maximum keyword-level positional arguments.
   min_kargs, max_kargs = (0, 0)
 
@@ -101,6 +104,8 @@ def complete(arguments, words):
     elif max_pargs > 0:
       min_pargs -= 1
       max_pargs -= 1
+      if max_kargs <= 0:
+        min_pargs, max_pargs = next(it)
     else:
       return
 
@@ -235,15 +240,7 @@ class CompletingArgumentParser(ArgumentParser):
       self._arguments.keywords[arg] = (cur_min_, cur_max_)
     else:
       # We are dealing with a positional argument.
-      if self._arguments.positionals is not None:
-        # TODO: What about the minimum? Strictly speaking we don't care
-        #       because we never use it for parser-level positionals but
-        #       we need a story for them (or remove them completely).
-        min_, max_ = self._arguments.positionals
-        max_ += cur_max_
-        self._arguments = Arguments((min_, max_), self._arguments.keywords)
-      else:
-        self._arguments = Arguments((cur_min_, cur_max_), self._arguments.keywords)
+      self._arguments.positionals.append((cur_min_, cur_max_))
 
 
   def add_argument(self, *args, complete=True, **kwargs):
