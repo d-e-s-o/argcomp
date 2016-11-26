@@ -113,6 +113,15 @@ class TestMisc(TestCase):
 
 class TestCompletingArgumentParser(TestCase):
   """Test cases for the CompletingArgumentParser class."""
+  def testNoArgumentInNamespace(self):
+    """Verify that the completion leaves no argument in the resulting namespace."""
+    parser = CompletingArgumentParser(prog="test")
+    parser.add_argument("--test", action="store_true")
+
+    namespace = parser.parse_args(["--test"])
+    self.assertEqual(vars(namespace), {"test": True})
+
+
   def performCompletion(self, parser, to_complete, expected, exit_code=0):
     """Attempt a completion and compare the result against the expectation."""
     argv = [

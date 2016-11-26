@@ -218,7 +218,7 @@ class CompletingArgumentParser(ArgumentParser):
 
     self.add_argument(
       COMPLETE_OPTION, action=CompleteAction, complete=False,
-      nargs=REMAINDER, help=SUPPRESS,
+      default=SUPPRESS, nargs=REMAINDER, help=SUPPRESS,
     )
 
 
