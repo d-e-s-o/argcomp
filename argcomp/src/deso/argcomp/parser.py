@@ -244,12 +244,16 @@ class CompletingArgumentParser(ArgumentParser):
       self._arguments.positionals.append((cur_min_, cur_max_))
 
 
-  def add_argument(self, *args, complete=True, **kwargs):
-    """Add an argument to the parser."""
+  def _addArgument(self, *args, complete=True, **kwargs):
+    """Add completions for an argument to the parser."""
     if complete:
       for arg in args:
         self._addCompletion(arg, **kwargs)
 
+
+  def add_argument(self, *args, complete=True, **kwargs):
+    """Add an argument to the parser."""
+    self._addArgument(*args, complete=complete, **kwargs)
     return super().add_argument(*args, **kwargs)
 
 
@@ -308,6 +312,30 @@ class CompletingArgumentParser(ArgumentParser):
     subparsers.add_parser = lambda *a, **k: addParser(add_parser, *a, **k)
 
     return subparsers
+
+
+  def _addGroup(self, add_func, *args, **kwargs):
+    """Add an argument group to an argument parser."""
+    def addArgument(add_argument, *args, complete=True, **kwargs):
+      """A replacement method for the add_argument method."""
+      self._addArgument(*args, complete=complete, **kwargs)
+      return add_argument(*args, **kwargs)
+
+    group = add_func(*args, **kwargs)
+
+    add_argument = group.add_argument
+    group.add_argument = lambda *a, **k: addArgument(add_argument, *a, **k)
+    return group
+
+
+  def add_argument_group(self, *args, **kwargs):
+    """Add a named argument group to an argument parser."""
+    return self._addGroup(super().add_argument_group, *args, **kwargs)
+
+
+  def add_mutually_exclusive_group(self, *args, **kwargs):
+    """Add a group to the argument parser whose options are mutually exclusive."""
+    return self._addGroup(super().add_mutually_exclusive_group, *args, **kwargs)
 
 
   @property

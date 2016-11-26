@@ -317,5 +317,34 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(parser, ["pos1", "pos2", "pos3", "pos4", ""], set(), exit_code=1)
 
 
+  def testCompleteWithArgumentGroups(self):
+    """Verify that argument groups are considered in completions."""
+    parser = CompletingArgumentParser(prog="withGroups", add_help=False)
+    parser.add_argument("-t", action="store_true")
+
+    group1 = parser.add_argument_group("test group 1")
+    group1.add_argument("-f", "--foo", action="store_true")
+    group1.add_argument("-h", "--help", action="store_true")
+
+    group2 = parser.add_argument_group("test group 2")
+    group2.add_argument("--bar", action="store_true")
+
+    self.performCompletion(parser, ["-"], {"-f", "-h", "-t", "--bar", "--foo", "--help"})
+    self.performCompletion(parser, ["--"], {"--bar", "--foo", "--help"})
+    self.performCompletion(parser, ["-f"], {"-f"})
+
+
+  def testCompleteWithMutuallyExclusiveGroup(self):
+    """Verify that mutually exclusive argument groups are handled correctly."""
+    parser = CompletingArgumentParser(prog="mutexGroup", add_help=False)
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--bar", action="store_true")
+    group.add_argument("--baz", action="store_true")
+
+    self.performCompletion(parser, ["-"], {"--bar", "--baz"})
+    self.performCompletion(parser, ["--bar"], {"--bar"})
+
+
 if __name__ == "__main__":
   main()
