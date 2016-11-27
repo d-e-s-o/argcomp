@@ -257,8 +257,14 @@ class CompletingArgumentParser(ArgumentParser):
     return super().add_argument(*args, **kwargs)
 
 
-  def parse_args(self, args=None, namespace=None):
-    """Parse a list of arguments."""
+  def parse_known_args(self, args=None, namespace=None):
+    """Parse all known arguments from a list of arguments."""
+    # Note that the parse_args method is implemented in terms of
+    # parse_known_args so the moment we overwrite the latter we
+    # effectively change the behavior of both.
+    # TODO: We are relying on an implementation detail here which is not
+    #       what we want. The difficulty is to not escape arguments
+    #       twice.
     if args is None:
       args = argv[1:]
 
@@ -285,7 +291,7 @@ class CompletingArgumentParser(ArgumentParser):
     except ValueError:
       pass
 
-    return super().parse_args(args=args, namespace=namespace)
+    return super().parse_known_args(args=args, namespace=namespace)
 
 
   def add_subparsers(self, *args, **kwargs):

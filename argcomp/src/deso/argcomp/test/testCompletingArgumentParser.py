@@ -122,7 +122,22 @@ class TestCompletingArgumentParser(TestCase):
     self.assertEqual(vars(namespace), {"test": True})
 
 
-  def performCompletion(self, parser, to_complete, expected, exit_code=0):
+  def testKnownArgsParsing(self):
+    """Verify that the parse_known_args method works as expected."""
+    parser = CompletingArgumentParser(prog="known")
+    parser.add_argument("--foo", action="store_false", default=True)
+
+    namespace, remainder = parser.parse_known_args(["-f"])
+    self.assertEqual(vars(namespace), {"foo": True})
+    self.assertEqual(remainder, ["-f"])
+
+    namespace, remainder = parser.parse_known_args(["--foo"])
+    self.assertEqual(vars(namespace), {"foo": False})
+    self.assertEqual(remainder, [])
+
+
+  def performCompletion(self, parser, to_complete, expected,
+                        exit_code=0, known_only=False):
     """Attempt a completion and compare the result against the expectation."""
     argv = [
       executable,
@@ -138,7 +153,10 @@ class TestCompletingArgumentParser(TestCase):
       # After performing a completion we expect the parser to exit but
       # we want to avoid an exit for testing purposes.
       with self.assertRaises(SystemExit) as e:
-        parser.parse_args(argv[2:])
+        if known_only:
+          parser.parse_known_args(argv[2:])
+        else:
+          parser.parse_args(argv[2:])
 
       completions = set(mock_stdout.getvalue().splitlines())
       self.assertSetEqual(completions, expected)
@@ -147,23 +165,29 @@ class TestCompletingArgumentParser(TestCase):
 
   def testSimpleKeywordArguments(self):
     """Verify that simple keyword arguments can be completed properly."""
-    parser = CompletingArgumentParser(prog="foo", add_help=False)
+    def doTest(known_only=False):
+      """Perform the completion test."""
+      k = {"known_only": known_only}
+      parser = CompletingArgumentParser(prog="foo", add_help=False)
 
-    parser.add_argument("--foo", action="store_true")
-    self.performCompletion(parser, ["-"], {"--foo"})
+      parser.add_argument("--foo", action="store_true")
+      self.performCompletion(parser, ["-"], {"--foo"}, **k)
 
-    parser.add_argument("-b", "--bar", action="store_true")
-    self.performCompletion(parser, ["-"], {"--foo", "-b", "--bar"})
-    self.performCompletion(parser, ["--"], {"--foo", "--bar"})
-    self.performCompletion(parser, ["-b"], {"-b"})
-    self.performCompletion(parser, ["-b", "--foo", "-b"], {"-b"})
-    self.performCompletion(parser, ["-b", "--foo", ""], {"--foo", "-b", "--bar"})
+      parser.add_argument("-b", "--bar", action="store_true")
+      self.performCompletion(parser, ["-"], {"--foo", "-b", "--bar"}, **k)
+      self.performCompletion(parser, ["--"], {"--foo", "--bar"}, **k)
+      self.performCompletion(parser, ["-b"], {"-b"}, **k)
+      self.performCompletion(parser, ["-b", "--foo", "-b"], {"-b"}, **k)
+      self.performCompletion(parser, ["-b", "--foo", ""], {"--foo", "-b", "--bar"}, **k)
 
-    # Also verify that an error is reported if there is no matching
-    # completion.
-    self.performCompletion(parser, ["--var"], set(), exit_code=1)
-    self.performCompletion(parser, ["-z"], set(), exit_code=1)
-    self.performCompletion(parser, ["-b", "-a"], set(), exit_code=1)
+      # Also verify that an error is reported if there is no matching
+      # completion.
+      self.performCompletion(parser, ["--var"], set(), exit_code=1, **k)
+      self.performCompletion(parser, ["-z"], set(), exit_code=1, **k)
+      self.performCompletion(parser, ["-b", "-a"], set(), exit_code=1, **k)
+
+    for known_only in (True, False):
+      doTest(known_only)
 
 
   def testCompleteAfterPositional(self):
