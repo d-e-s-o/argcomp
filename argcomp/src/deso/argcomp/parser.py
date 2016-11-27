@@ -40,6 +40,18 @@ from sys import (
 COMPLETE_OPTION = "--_complete"
 
 
+class Argument(namedtuple("Argument", ["min_", "max_"])):
+  """A tuple describing arguments."""
+  def __new__(cls, min_=0, max_=0):
+    """Overwrite class creation to provide proper default arguments."""
+    return super().__new__(cls, min_, max_)
+
+
+  def decrement(self):
+    """Retrieve a new tuple with the min_ and max_ value decremented by one."""
+    return Argument(self.min_ - 1, self.max_ - 1)
+
+
 class Arguments(namedtuple("Arguments", ["positionals", "keywords"])):
   """A tuple describing possible program options."""
   def __new__(cls, positionals=None, keywords=None):
@@ -66,45 +78,46 @@ def unescapeDoubleDash(args):
 
 def complete(arguments, words):
   """Complete the last word in the given list of words."""
+  def getPositional():
+    """Retrieve the positional argument at 'pos_idx'."""
+    if pos_idx < len(arguments.positionals):
+      return arguments.positionals[pos_idx]
+    else:
+      return Argument()
+
   # Without loss of generality, we attempt completing the last word in
   # the list of words. The assumption here is that only context before
   # this word matters, so everything found afterwards is irrelevant and
   # must be removed by the caller.
   *words, to_complete = words
   # The index to the next parser-level positional argument.
-  parg = 0
-  # The maximum parser-level positional arguments for the given argument.
-  if len(arguments.positionals) > 0:
-    _, max_pargs = arguments.positionals[parg]
-  else:
-    _, max_pargs = (0, 0)
-
+  pos_idx = 0
+  # The parser-level positional arguments for the given argument.
+  pos = getPositional()
   # The minimum and maximum keyword-level positional arguments.
-  min_kargs, max_kargs = (0, 0)
+  key = Argument()
 
   for word in words:
     # Try matching any keyword arguments. They take precedence over
     # positional arguments below.
     if word in arguments.keywords:
       value = arguments.keywords[word]
-      max_kargs = 0
+      key = Argument()
       if isinstance(value, Arguments):
         arguments = value
-        min_kargs, max_kargs = (0, 0)
-      elif isinstance(value, tuple):
-        min_kargs, max_kargs = value
+      elif isinstance(value, Argument):
+        key = value
     # Try matching it as a positional. Keyword argument positionals
     # take precedence over parser level ones.
-    elif max_kargs > 0:
-      min_kargs -= 1
-      max_kargs -= 1
-    elif max_pargs > 0:
-      max_pargs -= 1
+    elif key.max_ > 0:
+      key = key.decrement()
+    elif pos.max_ > 0:
+      pos = pos.decrement()
     else:
-      for parg in range(parg + 1, len(arguments.positionals)):
-        _, max_pargs = arguments.positionals[parg]
-        if max_pargs > 0:
-          max_pargs -= 1
+      for pos_idx in range(pos_idx + 1, len(arguments.positionals)):
+        pos = getPositional()
+        if pos.max_ > 0:
+          pos = pos.decrement()
           break
       else:
         # We were unable to find a matching positional argument.
@@ -112,7 +125,7 @@ def complete(arguments, words):
 
   # If there are open keyword-level positional arguments then we
   # should not start completion of keyword arguments.
-  if min_kargs <= 0:
+  if key.min_ <= 0:
     for word in arguments.keywords:
       if word.startswith(to_complete):
         yield word
@@ -235,13 +248,14 @@ class CompletingArgumentParser(ArgumentParser):
       # argument is the default.
       cur_min_, cur_max_ = (1, 1)
 
+    argument = Argument(cur_min_, cur_max_)
     keyword = arg.startswith("-")
     if keyword:
       # We are dealing with a keyword argument.
-      self._arguments.keywords[arg] = (cur_min_, cur_max_)
+      self._arguments.keywords[arg] = argument
     else:
       # We are dealing with a positional argument.
-      self._arguments.positionals.append((cur_min_, cur_max_))
+      self._arguments.positionals.append(argument)
 
 
   def _addArgument(self, *args, complete=True, **kwargs):
