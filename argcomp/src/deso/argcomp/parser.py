@@ -217,7 +217,7 @@ class CompleteAction(Action):
     # work on the client side was found.
     completions = list(complete(parser.arguments, words[:index]))
     if len(completions) > 0:
-      print("\n".join(completions))
+      print("\n".join(map(str, completions)))
 
     parser.exit(0 if len(completions) > 0 else 1)
 
@@ -253,7 +253,11 @@ class CompletingArgumentParser(ArgumentParser):
     """Register a completion for the given argument."""
     def completeChoice(word, choices):
       """Attempt completion of a word from the given choices."""
-      for choice in choices:
+      # Choices that are non-strings are allowed. For instance, integers
+      # are valid candidates and understood by the ArgumentParser.
+      # At the end of the day, however, everything we emit is a string,
+      # so work with strings here.
+      for choice in map(str, choices):
         if choice.startswith(word):
           yield choice
 

@@ -391,5 +391,17 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(parser, ["--foo", "bar", "s"], {"scissors"})
 
 
+  def testNonStrChoice(self):
+    """Verify that non-string choices can be completed."""
+    expected = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+    parser = CompletingArgumentParser(prog="nonStrChoices", add_help=False)
+    parser.add_argument("addends", choices=range(10), nargs="+")
+
+    self.performCompletion(parser, [""], expected)
+    self.performCompletion(parser, ["1", ""], expected)
+    self.performCompletion(parser, ["1", "9", ""], expected)
+    self.performCompletion(parser, ["1337", "42", ""], expected)
+
+
 if __name__ == "__main__":
   main()
