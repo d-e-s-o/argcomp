@@ -40,16 +40,21 @@ from sys import (
 COMPLETE_OPTION = "--_complete"
 
 
-class Argument(namedtuple("Argument", ["min_", "max_"])):
+def noCompletion(word):
+  """An argument completer yielding no completions."""
+  return tuple()
+
+
+class Argument(namedtuple("Argument", ["min_", "max_", "comp"])):
   """A tuple describing arguments."""
-  def __new__(cls, min_=0, max_=0):
+  def __new__(cls, min_=0, max_=0, comp=noCompletion):
     """Overwrite class creation to provide proper default arguments."""
-    return super().__new__(cls, min_, max_)
+    return super().__new__(cls, min_, max_, comp)
 
 
   def decrement(self):
     """Retrieve a new tuple with the min_ and max_ value decremented by one."""
-    return Argument(self.min_ - 1, self.max_ - 1)
+    return Argument(self.min_ - 1, self.max_ - 1, self.comp)
 
 
 class Arguments(namedtuple("Arguments", ["positionals", "keywords"])):
@@ -113,6 +118,9 @@ def complete(arguments, words):
       key = key.decrement()
     elif pos.max_ > 0:
       pos = pos.decrement()
+      if pos.max_ == 0:
+        pos_idx += 1
+        pos = getPositional()
     else:
       for pos_idx in range(pos_idx + 1, len(arguments.positionals)):
         pos = getPositional()
@@ -122,6 +130,12 @@ def complete(arguments, words):
       else:
         # We were unable to find a matching positional argument.
         return
+
+  if pos.max_ > 0:
+    yield from pos.comp(to_complete)
+
+  if key.max_ > 0:
+    yield from key.comp(to_complete)
 
   # If there are open keyword-level positional arguments then we
   # should not start completion of keyword arguments.
@@ -235,8 +249,14 @@ class CompletingArgumentParser(ArgumentParser):
     )
 
 
-  def _addCompletion(self, arg, **kwargs):
+  def _addCompletion(self, arg, choices=None, **kwargs):
     """Register a completion for the given argument."""
+    def completeChoice(word, choices):
+      """Attempt completion of a word from the given choices."""
+      for choice in choices:
+        if choice.startswith(word):
+          yield choice
+
     # We only fall back to interpreting the action to deduce the
     # argument count if no nargs parameter is given.
     if "nargs" in kwargs:
@@ -248,7 +268,12 @@ class CompletingArgumentParser(ArgumentParser):
       # argument is the default.
       cur_min_, cur_max_ = (1, 1)
 
-    argument = Argument(cur_min_, cur_max_)
+    if choices is not None:
+      completer = lambda word: completeChoice(word, choices)
+    else:
+      completer = noCompletion
+
+    argument = Argument(cur_min_, cur_max_, completer)
     keyword = arg.startswith("-")
     if keyword:
       # We are dealing with a keyword argument.

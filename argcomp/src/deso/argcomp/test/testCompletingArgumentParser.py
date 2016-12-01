@@ -370,5 +370,26 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(parser, ["--bar"], {"--bar"})
 
 
+  def testCompleteChoicesForKeyword(self):
+    """Verify that auto completion works if choices are given."""
+    parser = CompletingArgumentParser(prog="choices")
+    parser.add_argument("--move", choices=("rock", "paper", "scissors"))
+
+    self.performCompletion(parser, ["--move", ""], {"rock", "paper", "scissors"})
+    self.performCompletion(parser, ["--move", "p"], {"paper"})
+
+
+  def testCompleteChoicesForPositional(self):
+    """Verify that choice completion works for parser-level positionals."""
+    parser = CompletingArgumentParser(prog="choices", add_help=False)
+    parser.add_argument("player")
+    parser.add_argument("move", choices=("rock", "paper", "scissors"))
+    parser.add_argument("--foo", action="store_true")
+
+    self.performCompletion(parser, ["bar", "--foo", ""], {"rock", "paper", "scissors", "--foo"})
+    self.performCompletion(parser, ["--foo", ""], {"--foo"})
+    self.performCompletion(parser, ["--foo", "bar", "s"], {"scissors"})
+
+
 if __name__ == "__main__":
   main()
