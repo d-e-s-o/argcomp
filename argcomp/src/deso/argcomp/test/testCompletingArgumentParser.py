@@ -262,10 +262,12 @@ class TestCompletingArgumentParser(TestCase):
   def testCompletionWithSubparser(self):
     """Verify that completion also works with sub parsers."""
     parser = CompletingArgumentParser(prog="subfoo", add_help=False)
+    parser.add_argument("pos")
     parser.add_argument("--foo", action="store_true")
 
     subparsers = parser.add_subparsers()
     bar = subparsers.add_parser("bar", add_help=False)
+    bar.add_argument("fooz")
     bar.add_argument("-b", "--baz", action="store_true")
 
     foobar = subparsers.add_parser("foobar")
@@ -278,6 +280,8 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(parser, ["-"], {"--foo"})
     self.performCompletion(parser, ["b"], {"bar"})
     self.performCompletion(parser, ["bar", ""], {"-b", "--baz"})
+    self.performCompletion(parser, ["bar", "hallo", ""], {"-b", "--baz"})
+    self.performCompletion(parser, ["positional", "bar", "hallo", ""], {"-b", "--baz"})
     self.performCompletion(parser, ["foobar", ""], {"foobarbaz", "-h", "--foobar", "--help"})
     self.performCompletion(parser, ["--foo", "foobar", ""], {"foobarbaz", "-h", "--foobar", "--help"})
     self.performCompletion(parser, ["foobar", "--f"], {"--foobar"})

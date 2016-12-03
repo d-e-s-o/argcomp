@@ -110,6 +110,8 @@ def complete(arguments, words):
       key = Argument()
       if isinstance(value, Arguments):
         arguments = value
+        pos_idx = 0
+        pos = getPositional()
       elif isinstance(value, Argument):
         key = value
     # Try matching it as a positional. Keyword argument positionals
