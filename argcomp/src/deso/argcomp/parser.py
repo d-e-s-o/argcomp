@@ -251,7 +251,7 @@ class CompletingArgumentParser(ArgumentParser):
     )
 
 
-  def _addCompletion(self, arg, choices=None, **kwargs):
+  def _addCompletion(self, arg, choices=None, completer=None, **kwargs):
     """Register a completion for the given argument."""
     def completeChoice(word, choices):
       """Attempt completion of a word from the given choices."""
@@ -275,8 +275,11 @@ class CompletingArgumentParser(ArgumentParser):
       cur_min_, cur_max_ = (1, 1)
 
     if choices is not None:
+      # The 'completer' argument and 'choices' are mutually exclusive.
+      assert completer is None
       completer = lambda word: completeChoice(word, choices)
-    else:
+
+    if completer is None:
       completer = noCompletion
 
     argument = Argument(cur_min_, cur_max_, completer)
@@ -296,9 +299,9 @@ class CompletingArgumentParser(ArgumentParser):
         self._addCompletion(arg, **kwargs)
 
 
-  def add_argument(self, *args, complete=True, **kwargs):
+  def add_argument(self, *args, complete=True, completer=None, **kwargs):
     """Add an argument to the parser."""
-    self._addArgument(*args, complete=complete, **kwargs)
+    self._addArgument(*args, complete=complete, completer=completer, **kwargs)
     return super().add_argument(*args, **kwargs)
 
 
@@ -367,9 +370,10 @@ class CompletingArgumentParser(ArgumentParser):
 
   def _addGroup(self, add_func, *args, **kwargs):
     """Add an argument group to an argument parser."""
-    def addArgument(add_argument, *args, complete=True, **kwargs):
+    def addArgument(add_argument, *args, complete=True, completer=None,
+                    **kwargs):
       """A replacement method for the add_argument method."""
-      self._addArgument(*args, complete=complete, **kwargs)
+      self._addArgument(*args, complete=complete, completer=completer, **kwargs)
       return add_argument(*args, **kwargs)
 
     group = add_func(*args, **kwargs)

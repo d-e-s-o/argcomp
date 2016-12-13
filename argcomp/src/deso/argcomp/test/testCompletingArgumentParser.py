@@ -34,10 +34,22 @@ from deso.argcomp.parser import (
 from io import (
   StringIO,
 )
+from os import (
+  chdir,
+  getcwd,
+  listdir,
+)
+from os.path import (
+  basename,
+)
 from sys import (
   argv as sysargv,
   executable,
   maxsize,
+)
+from tempfile import (
+  NamedTemporaryFile,
+  TemporaryDirectory,
 )
 from unittest import (
   TestCase,
@@ -405,6 +417,59 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(parser, ["1", ""], expected)
     self.performCompletion(parser, ["1", "9", ""], expected)
     self.performCompletion(parser, ["1337", "42", ""], expected)
+
+
+  def testCompleteWithCompleter(self):
+    """Verify that the 'completer' argument works as expected."""
+    def localFileCompleter(word):
+      """A completer for files in the current working directory."""
+      for value in listdir():
+        if value.startswith(word):
+          yield value
+
+    def doTest(parser, args):
+      """Perform the completion test."""
+      with TemporaryDirectory() as dir_,\
+           NamedTemporaryFile(dir=dir_) as f1,\
+           NamedTemporaryFile(dir=dir_) as f2,\
+           NamedTemporaryFile(dir=dir_) as f3,\
+           NamedTemporaryFile(dir=dir_) as f4,\
+           NamedTemporaryFile(dir=dir_) as f5:
+        all_files = set(map(basename, {f1.name, f2.name, f3.name, f4.name, f5.name}))
+
+        old_cwd = getcwd()
+        chdir(dir_)
+        try:
+          self.performCompletion(parser, args + [""], all_files | {"-h", "--help"})
+          self.performCompletion(parser, args + ["no-file", ""], all_files | {"-h", "--help"})
+        finally:
+          chdir(old_cwd)
+
+    parser = CompletingArgumentParser(prog="completer")
+    parser.add_argument("test", completer=localFileCompleter, nargs="+")
+    doTest(parser, [])
+
+    parser = CompletingArgumentParser(prog="subcompleter")
+    subparsers = parser.add_subparsers()
+    subparser = subparsers.add_parser("subparser")
+    subparser.add_argument("test", completer=localFileCompleter, nargs="+")
+    doTest(parser, ["subparser"])
+
+
+  def testCompleteKeywordWithCompleter(self):
+    """Verify that the 'completer' argument works as expected for keyword arguments."""
+    def completeKeyword(word):
+      """A completer function."""
+      for choice in ("rock", "paper", "scissors"):
+        if choice.startswith(word):
+          yield choice
+
+    parser = CompletingArgumentParser(prog="keywordcompleter")
+    parser.add_argument("-k", "--keyword", completer=completeKeyword)
+
+    self.performCompletion(parser, ["-k", ""], {"rock", "paper", "scissors"})
+    self.performCompletion(parser, ["--keyword", ""], {"rock", "paper", "scissors"})
+    self.performCompletion(parser, ["-h", "--keyword", "r"], {"rock"})
 
 
 if __name__ == "__main__":
