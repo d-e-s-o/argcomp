@@ -102,7 +102,7 @@ A sample completer providing completions for local files and directories
 can look like this:
 
 ```python
-def localFileCompleter(word):
+def localFileCompleter(parser, values, word):
   """A completer for files in the current working directory."""
   for value in listdir():
     if value.startswith(word):
@@ -113,7 +113,7 @@ Registration is trivial and happens along with argument specification:
 ```diff
 --- cat.py
 +++ cat.py
-@@ -13,7 +13,7 @@ def localFileCompleter(word):
+@@ -13,7 +13,7 @@ def localFileCompleter(parser, values, word):
 
  parser = CompletingArgumentParser(prog="cat")
  parser.add_argument(

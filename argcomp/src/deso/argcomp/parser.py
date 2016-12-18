@@ -28,6 +28,12 @@ from argparse import (
 from collections import (
   namedtuple,
 )
+from contextlib import (
+  contextmanager,
+)
+from functools import (
+  partial,
+)
 from itertools import (
   chain,
 )
@@ -40,7 +46,12 @@ from sys import (
 COMPLETE_OPTION = "--_complete"
 
 
-def noCompletion(word):
+class ParserError(BaseException):
+  """Internal exception type raised by a parser during a complete operation."""
+  pass
+
+
+def noCompletion(parser, values, word):
   """An argument completer yielding no completions."""
   return tuple()
 
@@ -81,7 +92,7 @@ def unescapeDoubleDash(args):
   return map(lambda x: x.replace(r"\--", r"--"), args)
 
 
-def complete(arguments, words):
+def complete(parser, values, arguments, words):
   """Complete the last word in the given list of words."""
   def getPositional():
     """Retrieve the positional argument at 'pos_idx'."""
@@ -134,10 +145,10 @@ def complete(arguments, words):
         return
 
   if pos.max_ > 0:
-    yield from pos.comp(to_complete)
+    yield from pos.comp(parser, values, to_complete)
 
   if key.max_ > 0:
-    yield from key.comp(to_complete)
+    yield from key.comp(parser, values, to_complete)
 
   # If there are open keyword-level positional arguments then we
   # should not start completion of keyword arguments.
@@ -197,6 +208,29 @@ def decodeAction(action):
     return decodeNargs(action.nargs)
 
 
+@contextmanager
+def sandbox(parser):
+  """Temporarily overwrite a ArgumentsParser's error and exit method."""
+  def exitFn(status=0, message=None):
+    """A replacement for ArgumentsParser's exit method."""
+    raise ParserError()
+
+  def errorFn(message):
+    """A replacement for ArgumentsParser's error method."""
+    raise ParserError()
+
+  exit_ = parser.exit
+  error = parser.error
+
+  parser.exit = exitFn
+  parser.error = errorFn
+  try:
+    yield
+  finally:
+    parser.error = error
+    parser.exit = exit_
+
+
 class CompleteAction(Action):
   """An action used for completing command line arguments."""
   def __call__(self, parser, namespace, values, option_string=None):
@@ -217,7 +251,16 @@ class CompleteAction(Action):
     # by a new line symbol) and then exit. The latter step is rather
     # clumsy but then no better solution that requires no additional
     # work on the client side was found.
-    completions = list(complete(parser.arguments, words[:index]))
+    try:
+      # We do not want clients invoking a parser and causing a failure
+      # to unconditionally exit the program and printing an error or the
+      # usage of the program, so we replace the methods causing trouble
+      # with benign ones temporarily.
+      with sandbox(parser):
+        completions = list(complete(parser, words, parser.arguments, words[:index]))
+    except ParserError:
+      parser.exit(1)
+
     if len(completions) > 0:
       print("\n".join(map(str, completions)))
 
@@ -253,7 +296,7 @@ class CompletingArgumentParser(ArgumentParser):
 
   def _addCompletion(self, arg, choices=None, completer=None, **kwargs):
     """Register a completion for the given argument."""
-    def completeChoice(word, choices):
+    def completeChoice(parser, values, word, choices):
       """Attempt completion of a word from the given choices."""
       # Choices that are non-strings are allowed. For instance, integers
       # are valid candidates and understood by the ArgumentParser.
@@ -277,7 +320,7 @@ class CompletingArgumentParser(ArgumentParser):
     if choices is not None:
       # The 'completer' argument and 'choices' are mutually exclusive.
       assert completer is None
-      completer = lambda word: completeChoice(word, choices)
+      completer = partial(completeChoice, choices=choices)
 
     if completer is None:
       completer = noCompletion

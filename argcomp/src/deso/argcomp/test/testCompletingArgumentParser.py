@@ -421,7 +421,7 @@ class TestCompletingArgumentParser(TestCase):
 
   def testCompleteWithCompleter(self):
     """Verify that the 'completer' argument works as expected."""
-    def localFileCompleter(word):
+    def localFileCompleter(parser, values, word):
       """A completer for files in the current working directory."""
       for value in listdir():
         if value.startswith(word):
@@ -458,7 +458,7 @@ class TestCompletingArgumentParser(TestCase):
 
   def testCompleteKeywordWithCompleter(self):
     """Verify that the 'completer' argument works as expected for keyword arguments."""
-    def completeKeyword(word):
+    def completeKeyword(parser, values, word):
       """A completer function."""
       for choice in ("rock", "paper", "scissors"):
         if choice.startswith(word):
@@ -470,6 +470,25 @@ class TestCompletingArgumentParser(TestCase):
     self.performCompletion(parser, ["-k", ""], {"rock", "paper", "scissors"})
     self.performCompletion(parser, ["--keyword", ""], {"rock", "paper", "scissors"})
     self.performCompletion(parser, ["-h", "--keyword", "r"], {"rock"})
+
+
+  def testCompleterParserInvocation(self):
+    """Verify that the parser argument in a completer can be used properly."""
+    def completeParser(parser, values, word):
+      """Dummy completer simply parsing the given 'values' and returning the positional string."""
+      namespace, _ = parser.parse_known_args(values)
+      yield namespace.positional
+
+    positional = "pos!"
+
+    parser = CompletingArgumentParser()
+    parser.add_argument("positional")
+    parser.add_argument("--foo", completer=completeParser)
+
+    self.performCompletion(parser, [positional, "--foo", ""], {positional})
+    # Also verify that parser failures (due to a missing positional
+    # argument) are handled correctly.
+    self.performCompletion(parser, ["--foo", ""], set(), exit_code=1)
 
 
 if __name__ == "__main__":
