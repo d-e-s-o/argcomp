@@ -247,24 +247,7 @@ class CompleteAction(Action):
     index, script, *words = values
     index = int(index)
 
-    # The approach we take here is to print all completions (separated
-    # by a new line symbol) and then exit. The latter step is rather
-    # clumsy but then no better solution that requires no additional
-    # work on the client side was found.
-    try:
-      # We do not want clients invoking a parser and causing a failure
-      # to unconditionally exit the program and printing an error or the
-      # usage of the program, so we replace the methods causing trouble
-      # with benign ones temporarily.
-      with sandbox(parser):
-        completions = list(complete(parser, words, parser.arguments, words[:index]))
-    except ParserError:
-      parser.exit(1)
-
-    if len(completions) > 0:
-      print("\n".join(map(str, completions)))
-
-    parser.exit(0 if len(completions) > 0 else 1)
+    parser.complete(words[:index])
 
 
 class CompletingArgumentParser(ArgumentParser):
@@ -434,6 +417,28 @@ class CompletingArgumentParser(ArgumentParser):
   def add_mutually_exclusive_group(self, *args, **kwargs):
     """Add a group to the argument parser whose options are mutually exclusive."""
     return self._addGroup(super().add_mutually_exclusive_group, *args, **kwargs)
+
+
+  def complete(self, words):
+    """Complete the last word in a list of words representing arguments."""
+    # The approach we take here is to print all completions (separated
+    # by a new line symbol) and then exit. The latter step is rather
+    # clumsy but then no better solution that requires no additional
+    # work on the client side was found.
+    try:
+      # We do not want clients invoking a parser and causing a failure
+      # to unconditionally exit the program and printing an error or the
+      # usage of the program, so we replace the methods causing trouble
+      # with benign ones temporarily.
+      with sandbox(self):
+        completions = list(complete(self, words, self.arguments, words))
+    except ParserError:
+      self.exit(1)
+
+    if len(completions) > 0:
+      print("\n".join(map(str, completions)))
+
+    self.exit(0 if len(completions) > 0 else 1)
 
 
   @property
