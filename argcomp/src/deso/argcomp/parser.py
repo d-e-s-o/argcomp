@@ -1,7 +1,7 @@
 # parser.py
 
 #/***************************************************************************
-# *   Copyright (C) 2016 Daniel Mueller (deso@posteo.net)                   *
+# *   Copyright (C) 2016-2017 Daniel Mueller (deso@posteo.net)              *
 # *                                                                         *
 # *   This program is free software: you can redistribute it and/or modify  *
 # *   it under the terms of the GNU General Public License as published by  *
@@ -252,6 +252,9 @@ class CompleteAction(Action):
 
 class CompletingArgumentParser(ArgumentParser):
   """An ArgumentParser derivate with argument completion support."""
+  _ESCAPED = "__escaped"
+
+
   def __init__(self, *args, prefix_chars=None, fromfile_prefix_chars=None,
                arguments=None, **kwargs):
     """Create an argument parser with argument completion support."""
@@ -331,14 +334,35 @@ class CompletingArgumentParser(ArgumentParser):
     return super().add_argument(*args, **kwargs)
 
 
-  def parse_known_args(self, args=None, namespace=None):
-    """Parse all known arguments from a list of arguments."""
-    # Note that the parse_args method is implemented in terms of
-    # parse_known_args so the moment we overwrite the latter we
-    # effectively change the behavior of both.
-    # TODO: We are relying on an implementation detail here which is not
-    #       what we want. The difficulty is to not escape arguments
-    #       twice.
+  def _skipMultiEscape(function):
+    """A decorator used to avoid multiple escape operations by recursive invocations."""
+    def wrapper(self, *args, **kwargs):
+      """Wrapper function potentially skipping an invocation on CompletingArgumentParser."""
+      if hasattr(self, self._ESCAPED):
+        # In case the __escaped member exists we must have executed the
+        # wrapper code of parse_args/parse_known_args in
+        # CompletingArgumentParser already. We do not want to invoke it
+        # multiple times, so directly forward the call to the parent
+        # class.
+        super_ = super(CompletingArgumentParser, self)
+        return getattr(super_, function.__name__)(*args, **kwargs)
+      else:
+        return function(self, *args, **kwargs)
+
+    return wrapper
+
+
+  def _parseArgs(self, parse_func, args=None, namespace=None):
+    """Parse a list of arguments."""
+    @contextmanager
+    def escaped(parser):
+      """A context manager for setting the __escaped member."""
+      setattr(parser, self._ESCAPED, None)
+      try:
+        yield
+      finally:
+        delattr(parser, self._ESCAPED)
+
     if args is None:
       args = argv[1:]
 
@@ -365,7 +389,26 @@ class CompletingArgumentParser(ArgumentParser):
     except ValueError:
       pass
 
-    return super().parse_known_args(args=args, namespace=namespace)
+    # Note that argparse's parse_args may be implemented by means of
+    # parse_known_args. If that is the case, we would effectively be
+    # escaping the arguments twice because we get invoked again. To
+    # avoid this case, we have some machinery in place to detect such a
+    # recursive invocation and forward the call directly to the parent
+    # class.
+    with escaped(self):
+      return parse_func(args=args, namespace=namespace)
+
+
+  @_skipMultiEscape
+  def parse_args(self, args=None, namespace=None):
+    """Parse a list of arguments."""
+    return self._parseArgs(super().parse_args, args, namespace)
+
+
+  @_skipMultiEscape
+  def parse_known_args(self, args=None, namespace=None):
+    """Parse all known arguments from a list of arguments."""
+    return self._parseArgs(super().parse_known_args, args, namespace)
 
 
   def add_subparsers(self, *args, **kwargs):
