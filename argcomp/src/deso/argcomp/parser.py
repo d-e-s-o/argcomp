@@ -22,6 +22,7 @@
 from argparse import (
   Action,
   ArgumentParser,
+  FileType,
   REMAINDER,
   SUPPRESS,
 )
@@ -341,6 +342,11 @@ class CompletingArgumentParser(ArgumentParser):
       # The 'completer' argument and 'choices' are mutually exclusive.
       assert completer is None
       completer = partial(completeChoice, choices=choices)
+
+    if "type" in kwargs:
+      if isinstance(kwargs["type"], FileType):
+        assert completer is None
+        completer = completePath
 
     if completer is None:
       completer = noCompletion

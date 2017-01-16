@@ -21,6 +21,7 @@
 
 from argparse import (
   Action,
+  FileType,
 )
 from contextlib import (
   contextmanager,
@@ -509,6 +510,10 @@ class TestCompletingArgumentParser(TestCase):
     subparser = subparsers.add_parser("subparser")
     subparser.add_argument("test", completer=localFileCompleter, nargs="+")
     doTest(parser, ["subparser"])
+
+    parser = CompletingArgumentParser(prog="filecompleter")
+    parser.add_argument("test", type=FileType("r"), nargs="+")
+    doTest(parser, [])
 
 
   def testCompleteKeywordWithCompleter(self):
