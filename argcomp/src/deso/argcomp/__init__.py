@@ -1,7 +1,7 @@
 # __init__.py
 
 #/***************************************************************************
-# *   Copyright (C) 2016 Daniel Mueller (deso@posteo.net)                   *
+# *   Copyright (C) 2016-2017 Daniel Mueller (deso@posteo.net)              *
 # *                                                                         *
 # *   This program is free software: you can redistribute it and/or modify  *
 # *   it under the terms of the GNU General Public License as published by  *
@@ -21,5 +21,6 @@
 
 
 from deso.argcomp.parser import (
+  completePath,
   CompletingArgumentParser,
 )

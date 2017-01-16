@@ -1,7 +1,7 @@
 # testCompletingArgumentParser.py
 
 #/***************************************************************************
-# *   Copyright (C) 2016 Daniel Mueller (deso@posteo.net)                   *
+# *   Copyright (C) 2016-2017 Daniel Mueller (deso@posteo.net)              *
 # *                                                                         *
 # *   This program is free software: you can redistribute it and/or modify  *
 # *   it under the terms of the GNU General Public License as published by  *
@@ -22,7 +22,11 @@
 from argparse import (
   Action,
 )
+from contextlib import (
+  contextmanager,
+)
 from deso.argcomp import (
+  completePath,
   CompletingArgumentParser,
 )
 from deso.argcomp.parser import (
@@ -38,9 +42,12 @@ from os import (
   chdir,
   getcwd,
   listdir,
+  sep,
 )
 from os.path import (
   basename,
+  join,
+  relpath,
 )
 from sys import (
   argv as sysargv,
@@ -121,6 +128,54 @@ class TestMisc(TestCase):
     min_, max_ = decodeAction(TestAction("-f", "foo", nargs=13))
     self.assertEqual(min_, 13)
     self.assertEqual(max_, 13)
+
+
+class TestCompleters(TestCase):
+  """Test cases for different completers."""
+  @staticmethod
+  @contextmanager
+  def simpleHarness():
+    """Set up a simple directory harness."""
+    with TemporaryDirectory() as root,\
+         open(join(root, "file1"), "w+"),\
+         open(join(root, "file2"), "w+"),\
+         open(join(root, "file3"), "w+"),\
+         TemporaryDirectory(prefix="filedir", dir=root) as dir_,\
+         open(join(dir_, "file4"), "w+"),\
+         open(join(dir_, "file5"), "w+"):
+      old_cwd = getcwd()
+      chdir(root)
+      try:
+        yield relpath(dir_, start=root)
+      finally:
+        chdir(old_cwd)
+
+
+  @staticmethod
+  def complete(word):
+    """A simple wrapper around completePath()."""
+    return set(completePath(None, None, word))
+
+
+  def testCompletePath(self):
+    """Verify that the completePath() function works properly."""
+    with self.simpleHarness() as dir_:
+      expected = {
+        "file1",
+        "file2",
+        "file3",
+        dir_ + sep,
+      }
+      self.assertEqual(self.complete("file"), expected)
+      self.assertEqual(self.complete("filedi"), {dir_ + sep})
+      self.assertEqual(self.complete(dir_), {dir_ + sep})
+
+      expected = {
+        join(dir_, "file4"),
+        join(dir_, "file5"),
+      }
+      self.assertEqual(self.complete(dir_ + sep), expected)
+      self.assertEqual(self.complete(join(dir_, "file4")), {join(dir_, "file4")})
 
 
 class TestCompletingArgumentParser(TestCase):

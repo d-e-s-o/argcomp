@@ -34,6 +34,15 @@ from contextlib import (
 from functools import (
   partial,
 )
+from os import (
+  curdir,
+  sep,
+  walk,
+)
+from os.path import (
+  dirname,
+  join,
+)
 from itertools import (
   chain,
 )
@@ -54,6 +63,31 @@ class ParserError(BaseException):
 def noCompletion(parser, values, word):
   """An argument completer yielding no completions."""
   return tuple()
+
+
+def completePath(parser, values, word):
+  """Attempt completion of a path."""
+  # Note that in case there is no trailing separator ("/") the return
+  # value of dirname will be the empty string. We rely on this behavior
+  # because join("", x) is x.
+  top = dirname(word)
+
+  # TODO: We may want to give clients some possibilities to influence
+  #       the output. For instance, it would be nice to pass in accepted
+  #       extensions or whether or not directories/files should be
+  #       included/excluded.
+  for _, directories, files in walk(top if top else curdir):
+    for file_ in map(lambda x: join(top, x), files):
+      if file_.startswith(word):
+        yield file_
+
+    for dir_ in map(lambda x: join(top, x), directories):
+      if dir_.startswith(word):
+        yield dir_ + sep
+
+    # We are only interested in one level of the directory tree starting
+    # from 'top'.
+    break
 
 
 class Argument(namedtuple("Argument", ["min_", "max_", "comp"])):
