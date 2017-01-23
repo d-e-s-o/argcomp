@@ -100,8 +100,19 @@ testSetup:
 	)
 
 
+# Note that we intentionally specify the input format as 'markdown' and
+# not 'markdown_github' as the latter screws up the output.
+README.rst: README.md
+	@pandoc --from=markdown --to=rst $< --output=$@
+
+
+.PHONY: doc
+doc: README.rst
+
+
 .PHONY: upload
-upload:
+upload: doc
+	@git diff --exit-code --quiet --no-patch
 	@python setup.py sdist upload \
 	  --sign --identity=deso@posteo.net \
 	  --repository https://pypi.python.org/pypi

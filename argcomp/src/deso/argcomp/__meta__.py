@@ -32,4 +32,4 @@ def description():
 
 def version():
   """Retrieve the package's current version."""
-  return "0.9.0.0"
+  return "0.9.0.1"

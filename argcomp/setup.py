@@ -53,6 +53,12 @@ def retrieveDescription():
   return _importMeta()["description"]()
 
 
+def retrieveLongDescription():
+  """Retrieve a long description of the package."""
+  with open(join(dirname(__file__), "README.rst")) as f:
+    return f.read()
+
+
 setup(
   name = retrieveName(),
   author = "Daniel Mueller",
@@ -61,6 +67,7 @@ setup(
   maintainer_email = "deso@posteo.net",
   version = retrieveVersion(),
   description = retrieveDescription(),
+  long_description = retrieveLongDescription(),
   url = "https://github.com/d-e-s-o/argcomp",
   classifiers = [
     "Development Status :: 3 - Alpha",
